@@ -7,34 +7,32 @@ app = Flask(__name__)
 @app.route('/proxy')
 def proxy():
     url = request.args.get('url')
-    text_color = request.args.get('text', '00ff00')  # Default: Green text
-    bg_color = request.args.get('bg', '000000')      # Default: Black background
+    text_color = request.args.get('text', '00ff00')  # Default: green
+    bg_color = request.args.get('bg', '000000')      # Default: black
 
     if not url:
         return "URL missing", 400
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
+        headers = { "User-Agent": "Mozilla/5.0" }
         res = requests.get(url, headers=headers, timeout=10)
         html = res.text
 
-        # Inject CSS
+        # CSS Injection
         inject_css = f"""
         <style>
-          body, * {{
+        body, * {{
             font-size: 18px !important;
             line-height: 1.6 !important;
             color: #{text_color} !important;
             background-color: #{bg_color} !important;
             max-width: 100% !important;
             word-wrap: break-word !important;
-          }}
+        }}
         </style>
         """
 
-        # Inject JS for dictionary, translation, navigation
+        # JavaScript Injection (no malformed <\/script> or \\)
         inject_js = """
         <script>
         (function() {
@@ -92,19 +90,19 @@ def proxy():
             showPopup('<b>Translation:</b><br>' + translated, e.pageX, e.pageY);
           });
 
-          // Text selection popup: copy & translate
+          // Text selection popup with copy
           document.addEventListener('mouseup', async e => {
             const selection = window.getSelection().toString().trim();
             if (selection.length > 1) {
               const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
               const data = await res.json();
               const translated = data.responseData.translatedText;
-              const html = '<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + selection + '\\')">📋 Copy</button>';
+              const html = '<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(`' + selection + '`)">📋 Copy</button>';
               showPopup(html, e.pageX, e.pageY);
             }
           });
 
-          // Link click interception for iframe-parent sync
+          // Iframe link interception
           document.querySelectorAll('a[href]').forEach(link => {
             link.addEventListener('click', function(e) {
               e.preventDefault();
@@ -113,10 +111,10 @@ def proxy():
             });
           });
         })();
-        <\/script>
+        </script>
         """
 
-        # Inject after <head> tag
+        # Inject both after <head>
         html = re.sub(r"<head.*?>", lambda m: m.group(0) + inject_css + inject_js, html, count=1)
 
         return Response(html, content_type="text/html")
