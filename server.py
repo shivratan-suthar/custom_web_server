@@ -135,49 +135,15 @@ def proxy():
             }
           });
 
-          document.addEventListener('selectionchange', () => {
-            const selection = window.getSelection().toString().trim();
-            if (selection.length > 1) {
-              if (!window.translateBtn) {
-                window.translateBtn = document.createElement('button');
-                window.translateBtn.textContent = '🔁 Translate';
-                Object.assign(window.translateBtn.style, {
-                  position: 'fixed',
-                  bottom: '20px',
-                  right: '20px',
-                  zIndex: 999999,
-                  fontSize: '16px',
-                  padding: '10px 15px',
-                  background: '#0a0',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  boxShadow: '0 0 10px #0f0',
-                  display: 'none'
-                });
-                document.body.appendChild(window.translateBtn);
-              }
-              window.translateBtn.style.display = 'block';
-
-              window.translateBtn.onclick = async () => {
-                const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
-                const data = await res.json();
-                const translated = data.responseData.translatedText;
-                showPopup('<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')">📋 Copy</button>', 50, window.innerHeight - 150);
-                window.translateBtn.style.display = 'none';
-              };
-            } else if (window.translateBtn) {
-              window.translateBtn.style.display = 'none';
-            }
-          });
-
           // Reading timer and scroll-based progress
           const progressDiv = document.createElement('div');
           progressDiv.id = 'readProgress';
+          progressDiv.style.opacity = '0.65';
+
           document.body.appendChild(progressDiv);
 
           const words = document.body.innerText.trim().split(/\\s+/).length;
-          const wpm = 200;
+          const wpm = 100;
           const estMinutes = Math.ceil(words / wpm);
           let startTime = Date.now();
 
@@ -186,7 +152,7 @@ def proxy():
             const mins = Math.floor(elapsed / 60);
             const secs = elapsed % 60;
             const percent = Math.floor((window.scrollY + window.innerHeight) / document.body.scrollHeight * 100);
-            progressDiv.innerText = `⏱️ ${mins}m ${secs}s / ~${estMinutes}m | 📖 ${percent}%`;
+            progressDiv.innerText = `⏱️ ${mins}m ${secs}s /  | 📖 ${percent}%`;
           }
           setInterval(updateProgress, 1000);
           window.addEventListener('scroll', updateProgress);
