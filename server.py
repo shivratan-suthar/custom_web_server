@@ -22,7 +22,7 @@ def proxy():
             html = "<html><head></head><body>" + html + "</body></html>"
 
         inject_css = f"""
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-RXf+QSDCUQs6FWLZcZqx/vZr+LRz9vY6XUvOa8j2G6FbAi+cR9Ue2w+u+C5RVkPvXnUZ+RUzRgHQ3yCevG8Nqg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
 body, * {{
   font-size: 18px !important;
@@ -31,7 +31,6 @@ body, * {{
   background-color: #{bg_color} !important;
   max-width: 100% !important;
   word-wrap: break-word !important;
-  box-sizing: border-box;
 }}
 img {{
   max-width: 100% !important;
@@ -39,25 +38,15 @@ img {{
 }}
 #read-stats {{
   position: fixed;
-  top: 10px;
-  left: 10px;
-  background: rgba(0, 0, 0, 0.6);
+  top: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.5);
   color: #0f0;
-  font-size: 13px;
+  font-size: 12px;
   font-family: sans-serif;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 10px;
   z-index: 999999;
-  backdrop-filter: blur(5px);
-}}
-@media (max-width: 600px) {{
-  body, * {{
-    font-size: 16px !important;
-  }}
-  #read-stats {{
-    font-size: 12px;
-    padding: 6px 10px;
-  }}
 }}
 </style>
 """
@@ -73,7 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
     padding: '12px',
     borderRadius: '10px',
     zIndex: 999999,
-    maxWidth: '90%',
+    maxWidth: '300px',
     fontSize: '15px',
     fontFamily: 'sans-serif',
     display: 'none',
@@ -122,39 +111,68 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('touchstart', startPress);
   document.addEventListener('touchend', endPress);
 
-  // Translation floating button at top-right
-  const translateBtn = document.createElement('button');
-  translateBtn.innerHTML = '<i class="fa fa-language"></i> Translate';
-  Object.assign(translateBtn.style, {
-    position: 'fixed',
-    top: '10px',
-    right: '10px',
-    zIndex: 999999,
-    fontSize: '13px',
-    padding: '8px 12px',
-    background: '#0a0',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    boxShadow: '0 0 10px #0f0',
-    display: 'none'
+  // Translation on double click
+  document.addEventListener('dblclick', async e => {
+    const word = window.getSelection().toString().trim();
+    if (!word) return;
+    const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|hi');
+    const data = await res.json();
+    const translated = data.responseData.translatedText || 'No translation found';
+    showPopup('<b>Translation:</b><br>' + translated, e.pageX, e.pageY);
+    hidePopupAfterDelay(8000);
   });
-  document.body.appendChild(translateBtn);
 
+  // Translate on selection
+  document.addEventListener('mouseup', async e => {
+    const selection = window.getSelection().toString().trim();
+    if (selection.length > 1) {
+      const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
+      const data = await res.json();
+      const translated = data.responseData.translatedText;
+      const html = '<b>EN → HI:</b><br>' + translated +
+        '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')"><i class="fa fa-copy"></i> Copy</button>';
+      showPopup(html, e.pageX, e.pageY);
+      hidePopupAfterDelay(8000);
+    }
+  });
+
+  // Translate floating button
   document.addEventListener('selectionchange', () => {
     const selection = window.getSelection().toString().trim();
-    translateBtn.style.display = (selection.length > 1) ? 'block' : 'none';
+    if (selection.length > 1) {
+      if (!window.translateBtn) {
+        window.translateBtn = document.createElement('button');
+        window.translateBtn.innerHTML = '<i class="fa fa-language"></i> Translate';
+        Object.assign(window.translateBtn.style, {
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 999999,
+          fontSize: '14px',
+          padding: '10px 15px',
+          background: '#0a0',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 0 10px #0f0',
+          display: 'none'
+        });
+        document.body.appendChild(window.translateBtn);
+      }
+      window.translateBtn.style.display = 'block';
+      window.translateBtn.onclick = async () => {
+        const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
+        const data = await res.json();
+        const translated = data.responseData.translatedText;
+        showPopup('<b>EN → HI:</b><br>' + translated +
+          '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')"><i class="fa fa-copy"></i> Copy</button>',
+          50, window.innerHeight - 150);
+        window.translateBtn.style.display = 'none';
+      };
+    } else if (window.translateBtn) {
+      window.translateBtn.style.display = 'none';
+    }
   });
-
-  translateBtn.onclick = async () => {
-    const selection = window.getSelection().toString().trim();
-    const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
-    const data = await res.json();
-    const translated = data.responseData.translatedText;
-    showPopup('<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')"><i class="fa fa-copy"></i> Copy</button>', 20, 80);
-    translateBtn.style.display = 'none';
-    hidePopupAfterDelay(8000);
-  };
 
   // Reading stats
   const stats = document.createElement('div');
@@ -163,24 +181,34 @@ window.addEventListener('DOMContentLoaded', () => {
   document.body.appendChild(stats);
 
   const startTime = Date.now();
-  let prevWordCount = 0;
+  const wordCounts = [];
 
   setInterval(() => {
     const text = document.body.innerText || '';
     const words = text.split(/\\s+/).filter(w => w.length > 2).length;
-    const elapsedMinutes = (Date.now() - startTime) / 60000;
-    const wpm = Math.max(1, Math.round(words / elapsedMinutes));
-    const remaining = Math.ceil(Math.max(0, (words - prevWordCount)) / Math.max(wpm, 1));
-    prevWordCount = words;
+    const elapsed = (Date.now() - startTime) / 1000;
+    wordCounts.push({ time: Date.now(), count: words });
 
-    stats.innerText = `Words: ${words} | WPM: ${wpm} | ETA: ${remaining} min`;
+    // Keep last 20 seconds only
+    const now = Date.now();
+    while (wordCounts.length > 1 && (now - wordCounts[0].time > 20000)) {
+      wordCounts.shift();
+    }
+
+    const deltaWords = wordCounts.length > 1 ? wordCounts[wordCounts.length - 1].count - wordCounts[0].count : 0;
+    const deltaTime = (wordCounts[wordCounts.length - 1].time - wordCounts[0].time) / 1000;
+    const wpm = deltaTime > 0 ? Math.round((deltaWords / deltaTime) * 60) : 0;
+    const avgWpm = Math.max(wpm, 100);
+    const timeRemaining = words / avgWpm;
+
+    stats.innerText = `Words: ${words} | WPM: ${wpm} | ETA: ${Math.ceil(timeRemaining)} min`;
 
     localStorage.setItem('smartReaderHistory', JSON.stringify({
       lastRead: window.location.href,
       wordCount: words,
       timestamp: Date.now()
     }));
-  }, 5000);
+  }, 3000);
 
   // Link sync to parent
   document.querySelectorAll('a[href]').forEach(link => {
@@ -203,4 +231,3 @@ window.addEventListener('DOMContentLoaded', () => {
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
