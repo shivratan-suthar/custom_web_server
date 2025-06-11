@@ -18,6 +18,7 @@ def proxy():
         res = requests.get(url, headers=headers, timeout=10)
         html = res.text
 
+        # Ensure a head tag exists for CSS/JS injection
         if '<head' not in html:
             html = "<html><head></head><body>" + html + "</body></html>"
 
@@ -31,6 +32,7 @@ body, * {{
   background-color: #{bg_color} !important;
   max-width: 100% !important;
   word-wrap: break-word !important;
+  box-sizing: border-box; /* Ensure padding/border don't affect width */
 }}
 img {{
   max-width: 100% !important;
@@ -40,7 +42,7 @@ img {{
   position: fixed;
   top: 5px;
   right: 5px;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7); /* Added transparency */
   color: #0f0;
   font-size: 12px;
   font-family: sans-serif;
@@ -48,6 +50,38 @@ img {{
   border-radius: 10px;
   z-index: 999999;
 }}
+#translate-popup {{ /* Styles for the translate selection popup */
+  position: absolute;
+  background: rgba(34, 34, 34, 0.9); /* Added transparency */
+  color: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  z-index: 999999;
+  max-width: 300px;
+  font-size: 15px;
+  font-family: sans-serif;
+  display: none;
+  box-shadow: 0 0 10px #0f0;
+}}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  body, * {{
+    font-size: 16px !important;
+  }}
+  #read-stats {{
+    font-size: 10px;
+    padding: 4px 8px;
+    top: 2px;
+    right: 2px;
+  }}
+  #translate-popup {{
+    max-width: 90%;
+    left: 5% !important; /* Center on mobile */
+    right: 5% !important;
+    transform: translateX(0) !important;
+  }}
+}
 </style>
 """
 
@@ -55,25 +89,32 @@ img {{
 <script>
 window.addEventListener('DOMContentLoaded', () => {
   const popup = document.createElement('div');
-  Object.assign(popup.style, {
-    position: 'absolute',
-    background: '#222',
-    color: '#fff',
-    padding: '12px',
-    borderRadius: '10px',
-    zIndex: 999999,
-    maxWidth: '300px',
-    fontSize: '15px',
-    fontFamily: 'sans-serif',
-    display: 'none',
-    boxShadow: '0 0 10px #0f0'
-  });
+  popup.id = 'translate-popup'; // Assign ID for styling
   document.body.appendChild(popup);
 
   function showPopup(html, x, y) {
     popup.innerHTML = html;
-    popup.style.left = x + 'px';
-    popup.style.top = y + 'px';
+    // Adjust position to stay within viewport, especially on smaller screens
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    
+    let left = x;
+    let top = y;
+
+    // Check if popup goes off screen to the right
+    if (x + popup.offsetWidth > viewportWidth - 20) {
+      left = viewportWidth - popup.offsetWidth - 20;
+    }
+    // Check if popup goes off screen to the bottom
+    if (y + popup.offsetHeight > viewportHeight - 20) {
+      top = viewportHeight - popup.offsetHeight - 20;
+    }
+    // Ensure it doesn't go off screen to the left or top
+    if (left < 10) left = 10;
+    if (top < 10) top = 10;
+
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
     popup.style.display = 'block';
   }
 
@@ -108,21 +149,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('mousedown', startPress);
   document.addEventListener('mouseup', endPress);
-  document.addEventListener('touchstart', startPress);
+  document.addEventListener('touchstart', startPress, { passive: true }); // Use passive for touch events
   document.addEventListener('touchend', endPress);
 
-  // Translation on double click
-  document.addEventListener('dblclick', async e => {
-    const word = window.getSelection().toString().trim();
-    if (!word) return;
-    const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|hi');
-    const data = await res.json();
-    const translated = data.responseData.translatedText || 'No translation found';
-    showPopup('<b>Translation:</b><br>' + translated, e.pageX, e.pageY);
-    hidePopupAfterDelay(8000);
-  });
-
-  // Translate on selection
+  // Translate on selection (modified to show at top)
   document.addEventListener('mouseup', async e => {
     const selection = window.getSelection().toString().trim();
     if (selection.length > 1) {
@@ -130,85 +160,113 @@ window.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       const translated = data.responseData.translatedText;
       const html = '<b>EN → HI:</b><br>' + translated +
-        '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')"><i class="fa fa-copy"></i> Copy</button>';
-      showPopup(html, e.pageX, e.pageY);
+        '<br><button onclick="navigator.clipboard.writeText(\\' ' + translated.replace(/'/g, "\\'") + '\\')"><i class="fa fa-copy"></i> Copy</button>';
+      
+      // Position at the top, just below the stats bar
+      showPopup(html, e.pageX, 50); // Adjust Y coordinate as needed
       hidePopupAfterDelay(8000);
-    }
-  });
-
-  // Translate floating button
-  document.addEventListener('selectionchange', () => {
-    const selection = window.getSelection().toString().trim();
-    if (selection.length > 1) {
-      if (!window.translateBtn) {
-        window.translateBtn = document.createElement('button');
-        window.translateBtn.innerHTML = '<i class="fa fa-language"></i> Translate';
-        Object.assign(window.translateBtn.style, {
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          zIndex: 999999,
-          fontSize: '14px',
-          padding: '10px 15px',
-          background: '#0a0',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '8px',
-          boxShadow: '0 0 10px #0f0',
-          display: 'none'
-        });
-        document.body.appendChild(window.translateBtn);
-      }
-      window.translateBtn.style.display = 'block';
-      window.translateBtn.onclick = async () => {
-        const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
-        const data = await res.json();
-        const translated = data.responseData.translatedText;
-        showPopup('<b>EN → HI:</b><br>' + translated +
-          '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')"><i class="fa fa-copy"></i> Copy</button>',
-          50, window.innerHeight - 150);
-        window.translateBtn.style.display = 'none';
-      };
-    } else if (window.translateBtn) {
-      window.translateBtn.style.display = 'none';
     }
   });
 
   // Reading stats
   const stats = document.createElement('div');
   stats.id = 'read-stats';
-  stats.innerText = 'Reading...';
+  stats.innerText = 'Initializing...';
   document.body.appendChild(stats);
 
-  const startTime = Date.now();
-  const wordCounts = [];
+  let totalWords = 0;
+  let wordsReadInInterval = 0;
+  let previousScrollY = 0;
+  const wordReadHistory = []; // To store (timestamp, words_read_since_last_check)
+  const intervalDuration = 3000; // 3 seconds for updating stats
+
+  // Function to calculate words visible in the viewport
+  function countVisibleWords() {
+    let visibleWords = 0;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const text = entry.target.innerText;
+          visibleWords += text.split(/\\s+/).filter(w => w.length > 2).length;
+        }
+      });
+    }, { threshold: 0.1 }); // Trigger when 10% of the element is visible
+
+    // Observe all text-containing elements (p, div, span, etc.)
+    document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li').forEach(element => {
+      if (element.children.length === 0 && element.innerText.trim().length > 0) { // Only observe leaf nodes with text
+        observer.observe(element);
+      }
+    });
+    return visibleWords;
+  }
+
+  // Initial total words calculation
+  totalWords = (document.body.innerText || '').split(/\\s+/).filter(w => w.length > 2).length;
 
   setInterval(() => {
-    const text = document.body.innerText || '';
-    const words = text.split(/\\s+/).filter(w => w.length > 2).length;
-    const elapsed = (Date.now() - startTime) / 1000;
-    wordCounts.push({ time: Date.now(), count: words });
+    const currentScrollY = window.scrollY;
+    
+    // Estimate words read by scrolling
+    if (currentScrollY > previousScrollY) {
+      // Simple heuristic: Assume reading down the page. This is a rough estimate.
+      // A more accurate WPM needs to track *which* words have been scrolled past.
+      // For now, let's use the delta scroll to estimate reading progress.
+      // This is a common simplification for WPM in browser-based readers.
+      const scrollDelta = currentScrollY - previousScrollY;
+      // This factor might need tuning based on average line height and font size.
+      // Roughly, assume 10 words per 50 pixels of scroll.
+      wordsReadInInterval += Math.round(scrollDelta / 50 * 10); 
+    }
+    previousScrollY = currentScrollY;
 
-    // Keep last 20 seconds only
+    // Filter out words that are too small or just punctuation
+    const wordsInBody = (document.body.innerText || '').split(/\\s+/).filter(w => w.length > 2);
+    const currentTotalWords = wordsInBody.length;
+
+    // We'll use the *current viewable words* as our baseline for "words remaining"
+    // and attempt to calculate WPM based on *accumulated* words read.
+
+    // A more accurate WPM is based on *actual words read*, not total words in document.
+    // For a proxy, this is tricky. We'll use the scroll-based estimation, but acknowledge its limitations.
+
     const now = Date.now();
-    while (wordCounts.length > 1 && (now - wordCounts[0].time > 20000)) {
-      wordCounts.shift();
+    wordReadHistory.push({ time: now, words: wordsReadInInterval });
+
+    // Keep history for the last 60 seconds (or more if needed for smoother average)
+    const historyDuration = 60000; 
+    while (wordReadHistory.length > 1 && (now - wordReadHistory[0].time > historyDuration)) {
+      wordReadHistory.shift();
     }
 
-    const deltaWords = wordCounts.length > 1 ? wordCounts[wordCounts.length - 1].count - wordCounts[0].count : 0;
-    const deltaTime = (wordCounts[wordCounts.length - 1].time - wordCounts[0].time) / 1000;
-    const wpm = deltaTime > 0 ? Math.round((deltaWords / deltaTime) * 60) : 0;
-    const avgWpm = Math.max(wpm, 100);
-    const timeRemaining = words / avgWpm;
+    // Calculate WPM from history
+    let totalWordsInHistory = 0;
+    if (wordReadHistory.length > 1) {
+      totalWordsInHistory = wordReadHistory[wordReadHistory.length - 1].words - wordReadHistory[0].words;
+    }
+    
+    const timeElapsedInHistory = (wordReadHistory[wordReadHistory.length - 1].time - wordReadHistory[0].time) / 1000; // seconds
 
-    stats.innerText = `Words: ${words} | WPM: ${wpm} | ETA: ${Math.ceil(timeRemaining)} min`;
+    let wpm = 0;
+    if (timeElapsedInHistory > 0) {
+      wpm = Math.round((totalWordsInHistory / timeElapsedInHistory) * 60);
+    }
+    
+    // Set a minimum reasonable WPM to avoid division by zero or inflated ETAs
+    const effectiveWpm = Math.max(wpm, 150); // A reasonable floor for reading speed
+
+    // Calculate words remaining based on total document words (simplified)
+    const wordsRemaining = Math.max(0, currentTotalWords - wordsReadInInterval);
+    const timeRemainingMinutes = wordsRemaining / effectiveWpm;
+    
+    stats.innerText = `Words: ${currentTotalWords} | WPM: ${wpm} | ETA: ${Math.ceil(timeRemainingMinutes)} min`;
 
     localStorage.setItem('smartReaderHistory', JSON.stringify({
       lastRead: window.location.href,
-      wordCount: words,
+      wordCount: currentTotalWords,
       timestamp: Date.now()
     }));
-  }, 3000);
+  }, intervalDuration); // Update every 3 seconds
 
   // Link sync to parent
   document.querySelectorAll('a[href]').forEach(link => {
