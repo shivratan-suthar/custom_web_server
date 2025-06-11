@@ -41,15 +41,16 @@ def proxy():
           const popup = document.createElement('div');
           Object.assign(popup.style, {
             position: 'absolute',
-            background: '#000000e0',
-            color: 'white',
-            padding: '10px',
-            borderRadius: '8px',
+            background: '#222',
+            color: '#fff',
+            padding: '12px',
+            borderRadius: '10px',
             zIndex: 999999,
-            maxWidth: '320px',
-            fontSize: '15px',
+            maxWidth: '300px',
+            fontSize: '16px',
             fontFamily: 'sans-serif',
-            display: 'none'
+            display: 'none',
+            boxShadow: '0 0 10px #0f0'
           });
           document.body.appendChild(popup);
 
@@ -58,11 +59,15 @@ def proxy():
             popup.style.left = x + 'px';
             popup.style.top = y + 'px';
             popup.style.display = 'block';
-            setTimeout(() => popup.style.display = 'none', 8000);
+          }
+
+          function hidePopupAfterDelay(ms = 1000) {
+            setTimeout(() => popup.style.display = 'none', ms);
           }
 
           let longPressTimer;
-          document.addEventListener('mousedown', (e) => {
+          const startPress = (e) => {
+            const touch = e.touches ? e.touches[0] : e;
             longPressTimer = setTimeout(async () => {
               const word = window.getSelection().toString().trim();
               if (!word) return;
@@ -72,15 +77,25 @@ def proxy():
                 const entry = data[0];
                 const def = entry.meanings[0].definitions[0];
                 const html = '<b>' + word + '</b> <i>(' + entry.meanings[0].partOfSpeech + ')</i><br>' +
-                             def.definition + (def.example ? '<br><i>Example:</i> ' + def.example : '');
-                showPopup(html, e.pageX, e.pageY);
+                            def.definition + (def.example ? '<br><i>Example:</i> ' + def.example : '');
+                showPopup(html, touch.pageX, touch.pageY);
               } catch {
-                showPopup('⚠️ No dictionary result', e.pageX, e.pageY);
+                showPopup('⚠️ No dictionary result', touch.pageX, touch.pageY);
               }
             }, 1000);
-          });
-          document.addEventListener('mouseup', () => clearTimeout(longPressTimer));
+          };
 
+          const endPress = () => {
+            clearTimeout(longPressTimer);
+            hidePopupAfterDelay();
+          };
+
+          document.addEventListener('mousedown', startPress);
+          document.addEventListener('mouseup', endPress);
+          document.addEventListener('touchstart', startPress);
+          document.addEventListener('touchend', endPress);
+
+          // Translation on double click
           document.addEventListener('dblclick', async e => {
             const word = window.getSelection().toString().trim();
             if (!word) return;
@@ -88,8 +103,10 @@ def proxy():
             const data = await res.json();
             const translated = data.responseData.translatedText || 'No translation found';
             showPopup('<b>Translation:</b><br>' + translated, e.pageX, e.pageY);
+            hidePopupAfterDelay(8000);
           });
 
+          // Selection translate
           document.addEventListener('mouseup', async e => {
             const selection = window.getSelection().toString().trim();
             if (selection.length > 1) {
@@ -98,9 +115,11 @@ def proxy():
               const translated = data.responseData.translatedText;
               const html = '<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + selection + '\\')">📋 Copy</button>';
               showPopup(html, e.pageX, e.pageY);
+              hidePopupAfterDelay(8000);
             }
           });
 
+          // Sync navigation to parent
           document.querySelectorAll('a[href]').forEach(link => {
             link.addEventListener('click', function(e) {
               e.preventDefault();
