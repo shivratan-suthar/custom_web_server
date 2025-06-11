@@ -118,6 +118,41 @@ def proxy():
               hidePopupAfterDelay(8000);
             }
           });
+document.addEventListener('selectionchange', () => {
+  const selection = window.getSelection().toString().trim();
+  if (selection.length > 1) {
+    if (!window.translateBtn) {
+      window.translateBtn = document.createElement('button');
+      window.translateBtn.textContent = '🔁 Translate';
+      Object.assign(window.translateBtn.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        zIndex: 999999,
+        fontSize: '16px',
+        padding: '10px 15px',
+        background: '#0a0',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '8px',
+        boxShadow: '0 0 10px #0f0',
+        display: 'none'
+      });
+      document.body.appendChild(window.translateBtn);
+    }
+    window.translateBtn.style.display = 'block';
+
+    window.translateBtn.onclick = async () => {
+      const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
+      const data = await res.json();
+      const translated = data.responseData.translatedText;
+      showPopup('<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')">📋 Copy</button>', 50, window.innerHeight - 150);
+      window.translateBtn.style.display = 'none';
+    };
+  } else if (window.translateBtn) {
+    window.translateBtn.style.display = 'none';
+  }
+});
 
           // Sync navigation to parent
           document.querySelectorAll('a[href]').forEach(link => {
