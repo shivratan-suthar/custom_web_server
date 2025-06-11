@@ -7,35 +7,37 @@ app = Flask(__name__)
 @app.route('/proxy')
 def proxy():
     url = request.args.get('url')
-    text_color = request.args.get('text', '00ff00')  # Default: green
-    bg_color = request.args.get('bg', '000000')      # Default: black
+    text_color = request.args.get('text', '00ff00')
+    bg_color = request.args.get('bg', '000000')
 
     if not url:
         return "URL missing", 400
 
     try:
-        headers = { "User-Agent": "Mozilla/5.0" }
+        headers = {"User-Agent": "Mozilla/5.0"}
         res = requests.get(url, headers=headers, timeout=10)
         html = res.text
 
-        # CSS Injection
+        # Fallback if no <head>
+        if '<head' not in html:
+            html = "<html><head></head><body>" + html + "</body></html>"
+
         inject_css = f"""
         <style>
         body, * {{
-            font-size: 18px !important;
-            line-height: 1.6 !important;
-            color: #{text_color} !important;
-            background-color: #{bg_color} !important;
-            max-width: 100% !important;
-            word-wrap: break-word !important;
+          font-size: 18px !important;
+          line-height: 1.6 !important;
+          color: #{text_color} !important;
+          background-color: #{bg_color} !important;
+          max-width: 100% !important;
+          word-wrap: break-word !important;
         }}
         </style>
         """
 
-        # JavaScript Injection (no malformed <\/script> or \\)
         inject_js = """
         <script>
-        (function() {
+        window.addEventListener('DOMContentLoaded', () => {
           const popup = document.createElement('div');
           Object.assign(popup.style, {
             position: 'absolute',
@@ -59,7 +61,6 @@ def proxy():
             setTimeout(() => popup.style.display = 'none', 8000);
           }
 
-          // Dictionary on long press
           let longPressTimer;
           document.addEventListener('mousedown', (e) => {
             longPressTimer = setTimeout(async () => {
@@ -80,7 +81,6 @@ def proxy():
           });
           document.addEventListener('mouseup', () => clearTimeout(longPressTimer));
 
-          // Translation on double click
           document.addEventListener('dblclick', async e => {
             const word = window.getSelection().toString().trim();
             if (!word) return;
@@ -90,19 +90,17 @@ def proxy():
             showPopup('<b>Translation:</b><br>' + translated, e.pageX, e.pageY);
           });
 
-          // Text selection popup with copy
           document.addEventListener('mouseup', async e => {
             const selection = window.getSelection().toString().trim();
             if (selection.length > 1) {
               const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
               const data = await res.json();
               const translated = data.responseData.translatedText;
-              const html = '<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(`' + selection + '`)">📋 Copy</button>';
+              const html = '<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + selection + '\\')">📋 Copy</button>';
               showPopup(html, e.pageX, e.pageY);
             }
           });
 
-          // Iframe link interception
           document.querySelectorAll('a[href]').forEach(link => {
             link.addEventListener('click', function(e) {
               e.preventDefault();
@@ -110,11 +108,10 @@ def proxy():
               window.parent.postMessage({ type: 'navigate', url: newUrl }, '*');
             });
           });
-        })();
+        });
         </script>
         """
 
-        # Inject both after <head>
         html = re.sub(r"<head.*?>", lambda m: m.group(0) + inject_css + inject_js, html, count=1)
 
         return Response(html, content_type="text/html")
