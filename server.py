@@ -23,13 +23,14 @@ def proxy():
 
         inject_css = f"""
         <style>
-        body, * {{
+        body {{
           font-size: 18px !important;
           line-height: 1.6 !important;
           color: #{text_color} !important;
           background-color: #{bg_color} !important;
-          max-width: 100% !important;
           word-wrap: break-word !important;
+          margin: 0 auto !important;
+          padding: 15px;
         }}
         img {{
           max-width: 100% !important;
@@ -49,6 +50,13 @@ def proxy():
           border-radius: 8px;
           box-shadow: 0 0 10px #0f0;
           z-index: 999999;
+          opacity: 0.65;
+        }}
+        @media (min-width: 768px) {{
+          body {{
+            max-width: 900px !important;
+            background-color: #{bg_color} !important;
+          }}
         }}
         </style>
         """
@@ -138,8 +146,6 @@ def proxy():
           // Reading timer and scroll-based progress
           const progressDiv = document.createElement('div');
           progressDiv.id = 'readProgress';
-          progressDiv.style.opacity = '0.65';
-
           document.body.appendChild(progressDiv);
 
           const words = document.body.innerText.trim().split(/\\s+/).length;
