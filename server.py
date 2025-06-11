@@ -1,9 +1,10 @@
 from flask import Flask, request, Response
 from flask_cors import CORS
 import requests
+import re
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS
 
 @app.route('/proxy')
 def proxy():
@@ -18,6 +19,7 @@ def proxy():
         res = requests.get(url, headers=headers)
         html = res.text
 
+        # Inject CSS
         inject_css = """
         <style>
           body, * {
@@ -31,6 +33,7 @@ def proxy():
         </style>
         """
 
+        # Inject JavaScript for translation & dictionary
         inject_js = """
         <script>
         const popup = document.createElement('div');
@@ -79,9 +82,9 @@ def proxy():
         </script>
         """
 
-        # Inject after <head>
+        # Properly inject into the <head> tag using regex
         if "<head" in html:
-            html = html.replace("<head", "<head" + inject_css + inject_js)
+            html = re.sub(r"<head.*?>", lambda m: m.group(0) + inject_css + inject_js, html, count=1)
         else:
             html = "<head>" + inject_css + inject_js + "</head>" + html
 
