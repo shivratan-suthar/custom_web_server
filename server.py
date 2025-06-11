@@ -18,7 +18,6 @@ def proxy():
         res = requests.get(url, headers=headers, timeout=10)
         html = res.text
 
-        # Fallback if no <head>
         if '<head' not in html:
             html = "<html><head></head><body>" + html + "</body></html>"
 
@@ -31,6 +30,25 @@ def proxy():
           background-color: #{bg_color} !important;
           max-width: 100% !important;
           word-wrap: break-word !important;
+        }}
+        img {{
+          max-width: 100% !important;
+          height: auto !important;
+          object-fit: contain !important;
+          display: block;
+          margin: 10px 0;
+        }}
+        #readProgress {{
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          background: #0a0;
+          color: #fff;
+          padding: 10px 15px;
+          font-size: 14px;
+          border-radius: 8px;
+          box-shadow: 0 0 10px #0f0;
+          z-index: 999999;
         }}
         </style>
         """
@@ -95,7 +113,6 @@ def proxy():
           document.addEventListener('touchstart', startPress);
           document.addEventListener('touchend', endPress);
 
-          // Translation on double click
           document.addEventListener('dblclick', async e => {
             const word = window.getSelection().toString().trim();
             if (!word) return;
@@ -106,7 +123,6 @@ def proxy():
             hidePopupAfterDelay(8000);
           });
 
-          // Selection translate
           document.addEventListener('mouseup', async e => {
             const selection = window.getSelection().toString().trim();
             if (selection.length > 1) {
@@ -118,43 +134,64 @@ def proxy():
               hidePopupAfterDelay(8000);
             }
           });
-document.addEventListener('selectionchange', () => {
-  const selection = window.getSelection().toString().trim();
-  if (selection.length > 1) {
-    if (!window.translateBtn) {
-      window.translateBtn = document.createElement('button');
-      window.translateBtn.textContent = '🔁 Translate';
-      Object.assign(window.translateBtn.style, {
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: 999999,
-        fontSize: '16px',
-        padding: '10px 15px',
-        background: '#0a0',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        boxShadow: '0 0 10px #0f0',
-        display: 'none'
-      });
-      document.body.appendChild(window.translateBtn);
-    }
-    window.translateBtn.style.display = 'block';
 
-    window.translateBtn.onclick = async () => {
-      const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
-      const data = await res.json();
-      const translated = data.responseData.translatedText;
-      showPopup('<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')">📋 Copy</button>', 50, window.innerHeight - 150);
-      window.translateBtn.style.display = 'none';
-    };
-  } else if (window.translateBtn) {
-    window.translateBtn.style.display = 'none';
-  }
-});
+          document.addEventListener('selectionchange', () => {
+            const selection = window.getSelection().toString().trim();
+            if (selection.length > 1) {
+              if (!window.translateBtn) {
+                window.translateBtn = document.createElement('button');
+                window.translateBtn.textContent = '🔁 Translate';
+                Object.assign(window.translateBtn.style, {
+                  position: 'fixed',
+                  bottom: '20px',
+                  right: '20px',
+                  zIndex: 999999,
+                  fontSize: '16px',
+                  padding: '10px 15px',
+                  background: '#0a0',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  boxShadow: '0 0 10px #0f0',
+                  display: 'none'
+                });
+                document.body.appendChild(window.translateBtn);
+              }
+              window.translateBtn.style.display = 'block';
 
-          // Sync navigation to parent
+              window.translateBtn.onclick = async () => {
+                const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(selection) + '&langpair=en|hi');
+                const data = await res.json();
+                const translated = data.responseData.translatedText;
+                showPopup('<b>EN → HI:</b><br>' + translated + '<br><button onclick="navigator.clipboard.writeText(\\'' + translated + '\\')">📋 Copy</button>', 50, window.innerHeight - 150);
+                window.translateBtn.style.display = 'none';
+              };
+            } else if (window.translateBtn) {
+              window.translateBtn.style.display = 'none';
+            }
+          });
+
+          // Reading timer and scroll-based progress
+          const progressDiv = document.createElement('div');
+          progressDiv.id = 'readProgress';
+          document.body.appendChild(progressDiv);
+
+          const words = document.body.innerText.trim().split(/\\s+/).length;
+          const wpm = 200;
+          const estMinutes = Math.ceil(words / wpm);
+          let startTime = Date.now();
+
+          function updateProgress() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            const percent = Math.floor((window.scrollY + window.innerHeight) / document.body.scrollHeight * 100);
+            progressDiv.innerText = `⏱️ ${mins}m ${secs}s / ~${estMinutes}m | 📖 ${percent}%`;
+          }
+          setInterval(updateProgress, 1000);
+          window.addEventListener('scroll', updateProgress);
+
+          // Sync iframe link clicks
           document.querySelectorAll('a[href]').forEach(link => {
             link.addEventListener('click', function(e) {
               e.preventDefault();
